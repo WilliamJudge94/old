@@ -25,9 +25,20 @@ import logging
 import warnings
 import shutil
 import psutil
+import matplotlib.patches as patches
 from matplotlib.patches import Circle
 
+def mem_logger(num):
+    mems=psutil.virtual_memory()
+    available=str(round(mems[1]/1000000000,4))
+    used=str(round(mems[3]/1000000000,4))
+    percent=str(round(mems[2],1))
+    
+    
+    log.info(str(num)+'    RAM  - Available: '+available+' - Used: '+used+' - Percent: '+percent+' -')
+
 log=logging.getLogger(__name__)
+#logging.basicConfig(filename='/home/will/Desktop/SXDM.log',level=logging.INFO)
 
 class SXDM(): 
     """Allows the User to quickly analayze SXDM data
@@ -39,9 +50,10 @@ class SXDM():
 	fov: (number)
 		- a single number which specifies which field of fiew you are looking at
 	
-	scanlist: list of scan number STRINGS in [] notation
+	scanlist: list of scan number STRINGS or NUMBERS in [] notation
 		- the User can input any scan numbers they wish to analyse
-		- Example: ['294','300','303','307','310','315','318','321','324','327','330','333','336']
+		- Example (STRINGS): ['294','300','303','307','310','315','318','321','324','327','330','333','336']
+		- Example (NUMBERS): [294,300,303,307,310,315,318,321,324,327,330,333,336]
 
 	sample: string
 		- A string of what the sample name is. This corresponds to the folder names
@@ -49,7 +61,7 @@ class SXDM():
 		- If you need more acceptable values the User can add more in the .py file. They are located at the top of the __init__ function
         
         folder_path: string
-                - A string to the destination where the Beam_Line_Data* and WIP* folders are located
+                - A string to the destination where the Beam_Line_Data^ and WIP^ folders are located
                 - Can only be used if the User did not change any of the default filenames. See next two variables for more details.
 
 
@@ -87,12 +99,22 @@ class SXDM():
                 beamline_data_path='' ,
                 wip_path='',
                 ):
+        log.info('__init__ BEGIN')
+        logging.basicConfig(filename=folder_path+'SXDM.log',level=logging.INFO)
 
         #Warning about current memory amount in the computer
-        if psutil.virtual_memory()[0]/1000000000 < 31:
-            warnings.warn('Your Machine May Not Have Enough Memory To Complete Some Of The Scripts. It Is Advised To Have A Minimum Of 32GB of RAM.')
+        if psutil.virtual_memory()[0]/1000000000 < 16:
+            warnings.warn('Your Machine May Not Have Enough Memory To Complete Some Of The Scripts. It Is Advised To Have A Minimum Of 16GB of RAM.')
+        
+        
+        if isinstance(scanlist[0],int) == True:
+            log.info('User Input scanlist As A Number Array. Changing To String Array.')
+            scanlist_num2str=[]
+            for scan in scanlist:
+                scanlist_num2str.append(str(scan))
+            scanlist = scanlist_num2str
 
-
+        log.info('Setting the beamline_data_path and wip_path...')
         if folder_path=='':
             if beamline_data_path!='' and wip_path!='':
                 beamline_data_path=beamline_data_path
@@ -105,8 +127,8 @@ class SXDM():
 
         elif folder_path!='':
             if beamline_data_path=='' and wip_path=='':
-                beamline_data_path=folder_path+'Beam_Line_Data*/SXDM/APS_Filename*/'
-                wip_path=folder_path+'WIP*/'
+                beamline_data_path=folder_path+'Beam_Line_Data^/SXDM/APS_Filename^/'
+                wip_path=folder_path+'WIP^/'
             elif beamline_data_path!='' and wip_path!='':
                 beamline_data_path=beamline_data_path
                 wip_path=wip_path
@@ -117,11 +139,13 @@ class SXDM():
         print(' ')
         print('The programs folder_path + wip_path is currently set to: \n'+wip_path)
         print(' ')
+        log.info('The programs folder_path + beamline_data_path is currently set to: \n'+beamline_data_path)
+        log.info('The programs folder_path + wip_path is currently set to: \n'+wip_path)
 
 
 
 	#Allow the User to define which type of particle they are working on
-
+        log.info('Setting Predetermined Folder Names...')
         if sample=='pristine':
             folderval='1-Pristine/'            
         elif sample=='charged':
@@ -165,10 +189,11 @@ class SXDM():
         
 
         if scanangles=='':
+            log.info('Setting scanangles Variable to Default Array np.arange(0:len(array))...')
             scanangles=np.arange(0,len(scanlist))
             warnings.warn('scanangles variable has been set to its default array')       
         
-        
+        log.info('Creating self.variable To Define Folder Locations...')
             #Beamline Images
         self.data=beamline_data_path+folderval+'Images/'
 
@@ -204,21 +229,43 @@ class SXDM():
         
             #Folder that holds the Test.tif files
         self.testtif=wip_path+folderval+'8-TestTif/'#+'FOV'+str(fov)+ '/'
-        
-            #Folder that holds the Raw tif Images for final figures
-        self.raw=wip_path+folderval+'zRaw_Images/'#+'FOV'+str(fov)+ '/'
-        
+
             #The FOV the user has selected
         self.fov=['FOV'+ str(fov)]
+
+            #Folder that holds the Raw tif Images for final figures
+        self.raw=wip_path+folderval+'zRaw_Images/'#+'FOV'+str(fov)+ '/'
+        if os.path.exists(self.raw+self.fov[0]+'/') == False:
+            os.mkdir(self.raw+self.fov[0]+'/')
+            print('Creating FOV Folder for zRaw_Images...')
+            log.info('Creating FOV Folder for zRaw_Images...')
+
+        if os.path.exists(self.zExtra+self.fov[0]+'/') == False:
+            os.mkdir(self.zExtra+self.fov[0]+'/')
+            print('Creating FOV Folder for zExtra...')
+            log.info('Creating FOV Folder for zExtra...')          
+
         
             #Get the folder where we are going to store the 2theta figures from the MAPS in
         self.ims_2theta=wip_path+folderval+'IMS_2theta/'+self.fov[0]+'/'
+        if os.path.exists(self.ims_2theta) == False:
+            os.mkdir(self.ims_2theta)
+            print('Creating FOV Folder for ims_2theta...')
+            log.info('Creating FOV Folder for ims_2theta...')
         
             #Get the folder where we are going to store the chi figures from the MAPS in 
         self.ims_chi=wip_path+folderval+'IMS_chi/'+self.fov[0]+'/'
+        if os.path.exists(self.ims_chi) == False:
+            os.mkdir(self.ims_chi)
+            print('Creating FOV Folder for ims_chi...')
+            log.info('Creating FOV Folder for ims_chi...')
         
             #Get the folder where we are going to store the summed diffraction figures from the MAPS in 
         self.ims_summeddif=wip_path+folderval+'IMS_summeddif/'+self.fov[0]+'/'
+        if os.path.exists(self.ims_summeddif) == False:
+            os.mkdir(self.ims_summeddif)
+            print('Creating FOV Folder for ims_summeddif...')
+            log.info('Creating FOV Folder for ims_summeddif...')
 
 
             #An array of the scan numbers the user wants to load into the program
@@ -230,6 +277,9 @@ class SXDM():
             #The state of the particle the user is looking at
         self.samplestate=sample
 
+            #Gets the User defined folderpath to save images to
+        self.folder_path=folder_path
+
         
        
         
@@ -238,11 +288,12 @@ class SXDM():
         self.Imagespgf=wip_path+folderval+'Images/PGF/'
         self.Imagespng=wip_path+folderval+'Images/PNG/'
         self.Imagesraw=wip_path+folderval+'Images/RAW/'
- 
+        log.info('Checking To See If Files Already Exsist In Folders Before Moving Them...')
         images_change_dir=os.listdir(self.data_pre)
         if 'Link to Images' in images_change_dir:
             if 'Images' in images_change_dir:
                 warnings.warn('Images folder already created. Will not overwrite file.')
+                log.info('Found Files In Folders. Will Not Overwrite.')
             else:
                 os.rename(self.data_pre+'Link to Images',self.data_pre+'Images')
         images_change_dir=os.listdir(self.data_pre)
@@ -251,7 +302,8 @@ class SXDM():
         else:
             warnings.warn('You have forgotten to put the linked images folder in '+ self.data_pre)
         
-            #Takes the Matlab Code the user puts into the WIP* folder and places it into the correct FOV
+            #Takes the Matlab Code the user puts into the WIP^ folder and places it into the correct FOV
+        log.info('Taking Matlab Code Output And Placing It Into The Correct FOV...')
         Matlab_Move(self,'mat')
         Mat_to_Tif_Auto(self)
         Matlab_Move(self,'tif')
@@ -261,6 +313,7 @@ class SXDM():
 
        
         if dx!='' and dy!='': 
+            log.info('dx And dy Movements Set To User Input...')
             #dx of the selected particle state and FOV
             self.dx=dx
         
@@ -268,6 +321,7 @@ class SXDM():
             self.dy=dy
         
         elif dx=='' and dy=='':
+            log.info('dx And dy Movements Being Calulated From LocationTif Files...')
             dxarr=[]
             dyarr=[]
             
@@ -291,10 +345,11 @@ class SXDM():
             self.dy=movementy[1:len(movementy)]
         else:
             print(self.samplename+' dx And dy Movements Are Messed Up')
+            log.info('Cannot Determine dx And dy Movements...')
       
         
 
-
+        log.info('__init__ END')
        
 
            #Takes the raw tif image file for the chi, 2theta, roi, and summed dif and loads them into memory 
@@ -318,7 +373,8 @@ class SXDM():
 
         #Allows the user to get the ordered file names of the .MAT files for the user selected folder (location, roi, fluor, or test)
     def orderedfilenames_MAT(self,fol_type):
-        
+        log.info('orderedfilenames_MAT BEGIN')
+        log.info('Determening The Ordered Files For The Mat Folder - '+fol_type+' -')
         if fol_type=="location":
             file_type=self.locationmat
         
@@ -339,12 +395,14 @@ class SXDM():
                 a=a+1                                                     # step to the next value in X
                 arr[0].append(sorted(filenames))                          # append the filenames variable with the all the filenames in the folders
         c=sorted(arr)                                                     # Need to sort all the filenames
-        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list    
+        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list   
+        log.info('orderedfilenames_MAT END') 
         return modifiedlist                                               # Returns the sorted list of file names
 
 
     def orderedfilenames_detector(self,folder='None'):
-
+        log.info('orderedfilenames_detector BEGIN')
+        log.info('Determening The Ordered Files For Folder - zDetector -')
         file_type=self.detector
         if folder=='None':
             print('You Have To Set A Folder Number')
@@ -358,13 +416,15 @@ class SXDM():
                 a=a+1                                                     # step to the next value in X
                 arr[0].append(sorted(filenames))                          # append the filenames variable with the all the filenames in the folders
         c=sorted(arr)                                                     # Need to sort all the filenames
-        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list    
+        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list   
+        log.info('orderedfilenames_detector END') 
         return modifiedlist                     
 
 
         #Allows the user to get the ordered file names of the .TIF files for the user selected folder (location, roi, fluor, or test)
     def orderedfilenames_TIF(self,fol_type):
-
+        log.info('orderedfilenames_TIF BEGIN')
+        log.info('Determening The Ordered Files For The Tif Folder - '+fol_type+' -')
         
         if fol_type=="location":
             file_type=self.locationtif
@@ -389,12 +449,14 @@ class SXDM():
                 a=a+1                                                     # step to the next value in X
                 arr[0].append(sorted(filenames))                          # append the filenames variable with the all the filenames in the folders
         c=sorted(arr)                                                     # Need to sort all the filenames
-        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list    
+        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list 
+        log.info('orderedfilenames_TIF END')   
         
         return modifiedlist                                               # Returns the sorted list of file names 
 
         #Grabs the names of all the .tif images from every scan the user has selected
     def orderedfilenames_beamline_images(self):
+        log.info('orderedfilenames_beamline_images BEGIN')
         a=0                                                               # Arbitrary variable of 0 for a starting value for my forloop
         arr = [[] for _ in range(1)]                                      # Blank matrix for my forloop
         for b in range(0,len(self.scanlist)):                             # loop that grabs all the file names in each folder selected by the user
@@ -403,21 +465,26 @@ class SXDM():
                 a=a+1                                                     # step to the next value in X
                 arr[0].append(sorted(filenames))                          # append the filenames variable with the all the filenames in the folders
         c=sorted(arr)                                                     # Need to sort all the filenames
-        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list    
+        modifiedlist=list(filter(None,c))                                 # Filter out all the blank cells in the list  
+        log.info('orderedfilenames_beamline_images END')  
         return modifiedlist                                               # Returns the sorted list of file names 
         #Returns the shape of all the .mat files for a specific fol_type(roi,location,fluor,test)
-    def shapeMAT(self,fol_type,matlab_variable=['data2']):    
-        
+    def shapeMAT(self,fol_type,matlab_variable=['data2']):   
+        log.info('shapeMAT BEGIN') 
+        log.info('Getting The Shape Of The Matlab Files...')
         shape=[]
-        for i in range(0,len(self.orderedfilenames_MAT(fol_type=fol_type)[0][0])):
-            initial_data=scipy.io.loadmat(self.locationmat+self.fov[0]+'/'+self.orderedfilenames_MAT(fol_type=fol_type)[0][0][i])[matlab_variable[0]]
+        ordered_shapeMAT=self.orderedfilenames_MAT(fol_type=fol_type)
+        iterations_for_shapeMAT=len(ordered_shapeMAT[0][0])
+        for i in range(0,iterations_for_shapeMAT):
+            initial_data=scipy.io.loadmat(self.locationmat+self.fov[0]+'/'+ordered_shapeMAT[0][0][i])[matlab_variable[0]]
             output_data=np.asarray(initial_data).astype('uint32')
             shape.append(np.shape(output_data))
+        log.info('shapeMAT END') 
         return shape
         #Returns the dxdy array that is easily accessable by the program
 
     def dxdy(self):
-        
+        log.info('dxdy BEGIN') 
         starting_dx=0
         starting_dy=0
         dx1=[[starting_dx]+self.dx]
@@ -425,10 +492,12 @@ class SXDM():
         dx2=np.asarray(dx1)
         dy2=np.asarray(dy1)
         dxdy=[[g, h] for g, h in zip(dx2,dy2)]
+        log.info('dxdy END') 
         return dxdy
         #Returns the image locations of all the beamline .tif images in their proper location in a matrix
     def Location_Data(self):
-        
+        log.info('Location_Data BEGIN') 
+        log.info('Based On The dx And dy Movements We Are Calculating Matrix Movements For The Location_Data For The Beamline Images...')
         #Redefining the variables used. This used to be a function and I am changing it into a class so it can easily be changed
         dx=self.dx
         dy=self.dy
@@ -465,9 +534,10 @@ class SXDM():
                 m=m+1
 
             location_data.append(a)
+        log.info('Location_Data END') 
         return location_data
         #Summes all the data given in the beamline data images
-    def summeddif_cal(self,new_location_data,contrast_change,vmin='',vmax='',background_sub='y',background_sub_reverse='n',multiplier=1,num_ims_to_ave=2):                    #Does the same thing as the Summedarray tool, but this does it on the shifted data collected from this program to make sure the user is doing everything correctly 
+    def summeddif_cal(self,new_location_data,contrast_change,vmin='',vmax='',background_sub='y',background_sub_reverse='n',multiplier=1,num_ims_to_ave=2,roi_box_calc=False):                    #Does the same thing as the Summedarray tool, but this does it on the shifted data collected from this program to make sure the user is doing everything correctly 
         """Allows the User to create a summed diffraction pattern from their data
 
 	Variables--
@@ -502,7 +572,18 @@ class SXDM():
 
 
       """
+        log.info('summeddif_cal BEGIN') 
         log.info('Summed Diffraction Pattern & Histogram')
+        if roi_box_calc==False:
+            print('The Summed Array Image Matrix Will Be Saved As self.s_arr')
+            print(' ')
+        self.rois_new_location_data=new_location_data
+        self.rois_contrast_change=contrast_change
+        self.rois_background_sub=background_sub
+        self.rois_background_sub_reverse=background_sub_reverse
+        self.rois_multiplier=multiplier
+        self.rois_num_ims_to_ave=num_ims_to_ave
+
         	 
         time.sleep(0.5)
         length=self.tif_dim()
@@ -511,15 +592,20 @@ class SXDM():
         location_data=self.Location_Data()
         rerunall=contrast_change                   #Didnt want to rewrite all the code. rerunall doesnt mean rerunall look at this line of code. It means are you changing the contrast
         if contrast_change=='n':
+            print('Initializing Background Creation...')
+            log.info('Initializing Background Creation...')
+            time.sleep(2)
             background_arr=self.background_for_summed(num_ims_to_ave,multiplier,5,10)
-        log.info('Completed Step 1')
         if new_location_data=='y':
             location_data=self.location_data_crop()
         
-        log.info('Completed Step 2')
         if rerunall=='n':
-            tot_data=[[0 for x in range(length)] for y in range(length)]            
-            
+            tot_data=[[0 for x in range(length)] for y in range(length)]  
+            if roi_box_calc==True:          
+                roi_data = [[[0 for x in range(max(shape)[1])] for y in range(max(shape)[0])] for z in range(len(self.roi_boxes))]
+            print(' ')
+            print('Initializing Summed Diffraction Program...')
+            time.sleep(2)
             for k in tqdm(range(0,max(shape)[0])):                           #            #For the x dim of the roi                                        
 
                 for j in range(0,max(shape)[1]):                                    #for the y dim of the roi
@@ -544,47 +630,68 @@ background_arr[i],im)
                     try:
                         summed_spot=np.sum(spot_data,axis=0) 
                         tot_data=np.add(tot_data,summed_spot)
+                        if roi_box_calc==True:
+                            for variable,box in enumerate(self.roi_boxes):
+                                roi_cropping=np.sum(summed_spot[box[1]:box[1]+box[3],box[0]:box[0]+box[2]],axis=0)
+                                roi_cropping_med_blur=Wills_Median_Blur_With_Low(roi_cropping,4,10)
+                                roi_cropping_sum=np.sum(roi_cropping_med_blur,axis=0)
+                                roi_data[variable][k][j]=roi_cropping_sum
+
+
+
                     except:
                         pass
-            log.info('Completed Step 3')
+            time.sleep(1)
             log.info(str(np.min(tot_data))+'      '+str(np.max(tot_data)))
-            
-            fig=plt.figure(figsize=(20,10))
-            grid = plt.GridSpec(2, 3, wspace=0.4, hspace=0.3)
-            plt.subplot(grid[0, 0])
+            if roi_box_calc == False:            
+                fig=plt.figure(figsize=(20,10))
+                grid = plt.GridSpec(2, 3, wspace=0.4, hspace=0.3)
+                plt.subplot(grid[0, 0])
             
 
-            if vmin=='' and vmax=='':
-                fig1=plt.imshow(tot_data,vmin=np.min(tot_data),vmax=np.max(tot_data))
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),np.max(tot_data)*1.1)) 
-            elif vmin!='' and vmax!='':
-                fig1=plt.imshow(tot_data,vmin=vmin,vmax=vmax)
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),np.max(tot_data)*1.1)) 
-            elif vmin!='' and vmax=='':
-                fig1=plt.imshow(tot_data,vmin=vmin,vmax=np.max(tot_data))
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(tot_data.flatten(), bins=30,range=(vmin,np.max(tot_data)*1.1)) 
-            elif vmin=='' and vmax!='':
-                fig1=plt.imshow(tot_data,vmin=np.min(tot_data),vmax=vmax)
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),vmax)) 
+                if vmin=='' and vmax=='':
+                    fig1=plt.imshow(tot_data,vmin=np.min(tot_data),vmax=np.max(tot_data))
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),np.max(tot_data)*1.1))
+                    self.rois_vmin=np.min(tot_data)
+                    self.rois_vmax=np.max(tot_data)
+                elif vmin!='' and vmax!='':
+                    fig1=plt.imshow(tot_data,vmin=vmin,vmax=vmax)
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),np.max(tot_data)*1.1))
+                    self.rois_vmin=vmin
+                    self.rois_vmax=vmax  
+                elif vmin!='' and vmax=='':
+                    fig1=plt.imshow(tot_data,vmin=vmin,vmax=np.max(tot_data))
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(tot_data.flatten(), bins=30,range=(vmin,np.max(tot_data)*1.1)) 
+                    self.rois_vmin=vmin
+                    self.rois_vmax=np.max(tot_data)
+                elif vmin=='' and vmax!='':
+                    fig1=plt.imshow(tot_data,vmin=np.min(tot_data),vmax=vmax)
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(tot_data.flatten(), bins=30,range=(np.min(tot_data),vmax)) 
+                    self.rois_vmin=np.min(tot_data)
+                    self.rois_vmax=vmax 
 
                  
 
 
             if new_location_data=='n':
                 self.s_arr=tot_data
-                print('Max X: ',self.max_x(),' Max Y: ',self.max_y())
+                print('Max X: ',self.max_x(),' Max Y: ',self.max_y(),'     Min Value: '+str(round(np.min(tot_data),2))+'   Max Value: '+str(round(np.max(tot_data),2)))
             
             elif new_location_data=='y':
                 self.s_arr2=tot_data
-            print('Min Value: '+str(round(np.min(tot_data),2))+'   Max Value: '+str(round(np.max(tot_data),2)))
-            return tot_data
+                print('Min Value: '+str(round(np.min(tot_data),2))+'   Max Value: '+str(round(np.max(tot_data),2)))
+            log.info('summeddif_cal END') 
+            if roi_box_calc==False:
+                return tot_data
+            elif roi_box_calc==True:
+                return tot_data, roi_data
 
         else:
-            #log.info('Completed Step 5')
+
             try:
                 randoval=self.s_arr
             except:
@@ -600,33 +707,121 @@ background_arr[i],im)
                 except:
                     warnings.warn('This Parameter Is Set To A New Location. Cant Change Contrast Yet. Set Contrast Variable To Equal n')
                 im_arr=self.s_arr2      
-            #log.info('Completed Step 6')
+
             
+            if roi_box_calc == False:
+                fig=plt.figure(figsize=(20,10))
+                grid = plt.GridSpec(2, 3, wspace=0.4, hspace=0.3)
 
-            fig=plt.figure(figsize=(20,10))
-            grid = plt.GridSpec(2, 3, wspace=0.4, hspace=0.3)
 
-
-            plt.subplot(grid[0, 0])
-            if vmin=='' and vmax=='':
-                fig1=plt.imshow(im_arr,vmin=np.min(im_arr),vmax=np.max(im_arr))
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(im_arr.flatten(), bins=30,range=(np.min(im_arr),np.max(im_arr)*1.5))
-            elif vmin!='' and vmax!='':
-                fig1=plt.imshow(im_arr,vmin=vmin,vmax=vmax)
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(im_arr.flatten(), bins=30,range=(vmin,vmax*1.5))
-            elif vmin!='' and vmax=='':
-                fig1=plt.imshow(im_arr,vmin=vmin,vmax=np.max(im_arr))
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(im_arr.flatten(), bins=30,range=(vmin,np.max(im_arr)*1.5))
-            elif vmin=='' and vmax!='':
-                fig1=plt.imshow(im_arr,vmin=np.min(im_arr),vmax=vmax)
-                plt.subplot(grid[0, 1:])
-                fig2=plt.hist(im_arr.flatten(), bins=30,range=(np.min(im_arr),vmax*1.5))
+                plt.subplot(grid[0, 0])
+                if vmin=='' and vmax=='':
+                    fig1=plt.imshow(im_arr,vmin=np.min(im_arr),vmax=np.max(im_arr))
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(im_arr.flatten(), bins=30,range=(np.min(im_arr),np.max(im_arr)*1.5))
+                    self.rois_vmin=np.min(im_arr)
+                    self.rois_vmax=np.max(im_arr)
+                elif vmin!='' and vmax!='':
+                    fig1=plt.imshow(im_arr,vmin=vmin,vmax=vmax)
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(im_arr.flatten(), bins=30,range=(vmin,vmax*1.5))
+                    self.rois_vmin=vmin
+                    self.rois_vmax=vmax
+                elif vmin!='' and vmax=='':
+                    fig1=plt.imshow(im_arr,vmin=vmin,vmax=np.max(im_arr))
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(im_arr.flatten(), bins=30,range=(vmin,np.max(im_arr)*1.5))
+                    self.rois_vmin=vmin
+                    self.rois_vmax=np.max(im_arr)
+                elif vmin=='' and vmax!='':
+                    fig1=plt.imshow(im_arr,vmin=np.min(im_arr),vmax=vmax)
+                    plt.subplot(grid[0, 1:])
+                    fig2=plt.hist(im_arr.flatten(), bins=30,range=(np.min(im_arr),vmax*1.5))
+                    self.rois_vmin=np.min(im_arr)
+                    self.rois_vmax=vmax
             print('Min Value: '+str(round(np.min(im_arr),2))+'   Max Value: '+str(round(np.max(im_arr),2)))
-            return self.s_arr
-        
+            log.info('summeddif_cal END') 
+            if roi_box_calc==False:
+                return self.s_arr
+            elif roi_box_calc==True:
+                return self.s_arr, roi_data
+
+
+
+
+    def new_roi_step1(self,roi_boxes='',color=['r','r','r','r']):
+        """
+        This will help define your ROIs. set up the roi_boxes variable as [(70, 350, 120, 500),(190, 350, 120, 500),(450, 300, 160, 600)]
+
+        """
+        if roi_boxes == '':
+            roi_boxes = [(0,0,self.tif_dim(),self.tif_dim())]
+        fig,ax = plt.subplots(1)
+    # Display the image
+        ax.imshow(self.s_arr,vmin=self.rois_vmin,vmax=self.rois_vmax)
+        arrs=[]
+        for variable,box in enumerate(roi_boxes):
+    # Create a Rectangle patch
+            color_var=color[variable]
+            rect = patches.Rectangle((box[0],box[1]),box[2],box[3],linewidth=1,edgecolor=color_var,facecolor='none')
+            plt.annotate(str(variable),(box[0]+box[2]/2,box[1]+box[3]/2),color=color_var,ha='center')
+    # Add the patch to the Axes
+            ax.add_patch(rect)
+        self.roi_boxes=roi_boxes
+
+
+    def new_roi_step2(self,rgb_multiplier=1):
+        print('The Last ROI Box Defined Is Set To self.roi_master. Every Other ROI Will Be Normalized To RGB')
+        print('')
+        #will assume your last roi is the full_roi_region
+        num_rois=len(self.roi_boxes)
+        if num_rois<=4:
+            summarr,roi_dats=self.summeddif_cal(self.rois_new_location_data,
+                                                 'n',
+                                                 self.rois_vmin,
+                self.rois_vmax,
+                self.rois_background_sub,
+                self.rois_background_sub_reverse,
+                self.rois_multiplier,
+                self.rois_num_ims_to_ave,
+                roi_box_calc=True)
+
+            shape=self.shapeMAT(fol_type='roi')
+            blank_dats=[[0 for x in range(max(shape)[1])] for y in range(max(shape)[0])] 
+
+            if num_rois>1 and num_rois<=4:
+                max_for_rgb=np.max(roi_dats[0:num_rois-1])
+
+            if num_rois==4:
+                norm_RGB=np.dstack(((roi_dats[0]/max_for_rgb)*rgb_multiplier,
+                                          (roi_dats[1]/max_for_rgb)*rgb_multiplier
+                                          ,(roi_dats[2]/max_for_rgb)*rgb_multiplier))
+            if num_rois==3:
+                norm_RGB=np.dstack(((roi_dats[0]/max_for_rgb)*rgb_multiplier,
+                                          (roi_dats[1]/max_for_rgb)*rgb_multiplier
+                                          ,blank_dats))
+            if num_rois==2:
+                norm_RGB=np.dstack(((roi_dats[0]/max_for_rgb)*rgb_multiplier,
+                                          blank_dats,
+                                          blank_dats))
+
+
+            master_roi = roi_dats[-1]
+            if num_rois==1:
+                warnings.warn('Only 1 ROI area given. norm_rgb roi has been set to equivalent to the master_roi')
+                norm_RGB=master_roi
+            self.roi_data_raw = roi_dats
+            self.roi_norm_RGB = norm_RGB
+            self.roi_master = master_roi
+            print('raw roi data saved to self.roi_data_raw')
+        else:
+            warnings.warn('The program can only do a max of 4 rois (3 for RGB and 1 for Total ROI). Please correct your mistake.')
+        f, (ax1, ax2) = plt.subplots(1, 2)
+        ax1.imshow(self.roi_master)
+        ax1.set_title('self.roi_master')
+        ax2.imshow(self.roi_norm_RGB)
+        ax2.set_title('self.roi_norm_RGB')
+
 
         #Gives the max x dimension of the ROI
     def max_x(self):
@@ -638,7 +833,7 @@ background_arr[i],im)
     def movedroi(self):
         pass
         #Checks to see if what you have in frame has a good gaussian curve to the intensities for the rocking angles
-    def gaussiancheck(self):
+    def gaussiancheck(self,tshoot='n'):
         """ Plots the Intensity vs Rocking angle for the ROI cop the User has assigned 
 	Variables--
 	
@@ -655,14 +850,24 @@ background_arr[i],im)
         print('Gaussian Check')
         time.sleep(0.5)
         
-        for i in range(0,np.shape(self.Corrected_Matrix)[0]):
+        if len(x) == np.shape(self.Corrected_Matrix)[0]:
+            find_the_range = len(x)
+        elif len(x) != np.shape(self.Corrected_Matrix)[0]:
+            find_the_range = len(x)
+            warnings.warn('x and y dimensions are off. Program corrected as best it could.') 
+             
+        
+        for i in range(0,find_the_range):
             y_arr.append(np.sum(self.Corrected_Matrix[i]))
+        if tshoot=='y':
+            return self.scanangles,x,y_arr
+        elif tshoot=='n':
+            plt.title(self.samplestate+' '+self.fov[0])
+            plt.xlabel('Rocking Angle')
+            plt.ylabel('Total Diffraction Signal')
+            plt.scatter(x,y_arr)
 
-        plt.title(self.samplestate+' '+self.fov[0])
-        plt.xlabel('Rocking Angle')
-        plt.ylabel('Total Diffraction Signal')
-        plt.scatter(x,y_arr)
-        return fig
+            return fig
         
         #Crops the ROI image to what the user wants and outputs the image as Corrected_Matrix
     def roi_crop_pre(self,start_x,end_x,start_y,end_y,vmin='',vmax=''):
@@ -765,7 +970,7 @@ background_arr[i],im)
         
         
         #Changed all the zeros the Corrected_Matrix image to a non zero value based on the background values
-    def roi_crop_post(self,row,left_col,right_col):
+    def roi_crop_post(self,row,left_col,right_col,show_new_summeddif='n',vmax=''):
 
         """ Fixes the roi_crop_pre
 
@@ -780,7 +985,13 @@ background_arr[i],im)
 		- based on the roi_crop_pre image pick a left starting column of the row you selected in which the particle you are looking at does not exist in
 
 	right_col: (number)
-		- based on the roi_crop_pre image pick a right ending column of the row you selected in which the particle you are looking at does not exist in 
+		- based on the roi_crop_pre image pick a right ending column of the row you selected in which the particle you are looking at does not exist in
+  
+        show_new_summeddif: (str)
+                - 'y' or 'n' string that allows the user to calculte the summed diffraction pattern for the roi selected
+
+        vmax: (int)
+                - an integer number that determines the vmax of the plt.imshow() vmax function. 
 
 	Returns--
 
@@ -811,6 +1022,8 @@ background_arr[i],im)
         
         self.roi_crop_post_fig=fig
         self.roi_crop_post_im=newim2
+        if show_new_summeddif!='n':
+            self.summeddif_cal_cropped(vmax=vmax)
         
         return fig
     
@@ -837,7 +1050,8 @@ background_arr[i],im)
 #        imageio.imwrite(self.Imagesraw+self.samplestate+self.fov[0]+'_'+ims_type+'_raw.tif',raw)
       
     def background_for_summed(self,imagestoaverage,multiplier,med_blur_number,med_blur_high):
-        print('If the data doesn''t look right set the multiplier a different value. Setting it to equal 2 usually works \n The User can also set the background_sub_reverse variable to equal ''y''')
+        log.info('background_for_summed BEGIN')
+        #print('If the data doesn''t look right set the multiplier a different value. Setting it to equal 2 usually works \nThe User can also set the background_sub_reverse variable to equal ''y''')
         #There are a lot of random values in this section of code because I duplicated it from another section and don't want to take the parts of the code out that arnt being used
         Chior2Theta2='chi'
         axi=CHIor2THETA(Chior2Theta2)
@@ -871,7 +1085,7 @@ background_arr[i],im)
                 mean_ims=np.mean(ims,axis=0).astype('uint32')   #Averaging the array we just created
 
             total_mean_ims.append(mean_ims)
-
+        log.info('background_for_summed END')
         return (np.asarray(total_mean_ims)*multiplier).astype('uint32')    
 
 
@@ -886,7 +1100,8 @@ background_arr[i],im)
 
         #Creates a background chi background image for each scan angle
     def background_chi(self,imagestoaverage,multiplier,med_blur_number,med_blur_high):
-        print('If the data doesn''t look right set the multiplier a different value. Setting it to equal 2 usually works')
+        log.info('background_chi BEGIN')
+        #print('If the data doesn''t look right set the multiplier a different value. Setting it to equal 2 usually works')
         Chior2Theta2='chi'
         axi=CHIor2THETA(Chior2Theta2)
         #print(axi)
@@ -919,10 +1134,11 @@ background_arr[i],im)
                 mean_ims=np.mean(ims,axis=0).astype('uint32')   #Averaging the array we just created
 
             total_mean_ims.append(mean_ims)
-
+        log.info('background_chi END')
         return (np.asarray(total_mean_ims)*multiplier).astype('uint32')    
        #Creates a 2theta background image for each scan angle
     def background_2theta(self,imagestoaverage,multiplier,med_blur_number,med_blur_high):
+        log.info('background_2theta BEGIN')
         Chior2Theta2='2theta'
         axi=CHIor2THETA(Chior2Theta2)
         #print(axi)
@@ -955,10 +1171,11 @@ background_arr[i],im)
                 mean_ims=np.mean(ims,axis=0).astype('uint32')   #Averaging the array we just created
 
             total_mean_ims.append(mean_ims)
-
+        log.info('background_2theta END')
         return (np.asarray(total_mean_ims)*multiplier).astype('uint32')  
         #crops the location data based on what the user has defined for the ROI crop
     def location_data_crop(self):
+        log.info('location_data_crop BEGIN')
         foldernames=self.scanlist
         location_data=self.Location_Data()
         empty_list=[]
@@ -968,21 +1185,128 @@ background_arr[i],im)
                 for k in range(self.start_x,self.end_x):
                     location_data_new[j][k]=location_data[i][j][k]
             empty_list.append(location_data_new)
-
+        log.info('location_data_crop END')
         return empty_list
+
+    def summeddif_cal_cropped(self,vmax=''):
+        counter=1
+        for location1 in self.location_data_crop():
+            for location2 in location1:
+                for location3 in location2:
+                    try:
+                        for location4 in location3:
+                            if counter==1:
+                                summed=imageio.imread(location4).astype('uint32')
+                                counter=2
+                            else:
+                                summed=np.add(summed,imageio.imread(location4).astype('uint32'))
+
+                    except:
+                        pass
+
+
+        if vmax=='':
+            plt.imshow(summed)
+        else:
+            plt.imshow(summed,vmax=vmax)
+
+
+    def raw_images_save(self):
+
+        try:
+            print('Your sub_fov is '+self.sub_fov)
+        except:
+            self.sub_fov=(input('What is the sub_fov of the data you are saving? '))
+        save_dic=[
+        self.raw+self.fov[0]+'/'+'s_arr_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'s_arr2_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'roi_norm_rgb_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'roi_master_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'roi_crop_pre_im_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'roi_crop_post_im_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'chi_centroid_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'ttheta_centroid_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif']
+        print('')
+        save_var_im=[]
+        counter_array=[]
+        error_array=[]
+
+        try:
+            save_var_im.append(self.s_arr)
+            counter_array.append(0)
+        except:
+            error_array.append('Unable to save s_arr')
+
+        try:
+            save_var_im.append(self.s_arr2)
+            counter_array.append(1)
+        except:
+            error_array.append('Unable to save s_arr2')
+
+        try:
+            save_var_im.append(self.roi_norm_RGB)
+            counter_array.append(2)
+        except:
+            error_array.append('Unable to save roi_norm_RGB')
+
+        try:
+            save_var_im.append(self.roi_master)
+            counter_array.append(3)
+        except:
+            error_array.append('Unable to save roi_master')
+
+        try:
+            save_var_im.append(self.roi_crop_pre_im)
+            counter_array.append(4)
+        except:
+            error_array.append('Unable to save roi_crop_pre_im')
+
+        try:
+            save_var_im.append(self.roi_crop_post_im)
+            counter_array.append(5)
+        except:
+            error_array.append('Unable to save roi_crop_post_im')
+
+        try:
+            save_var_im.append(self.chi_centroid)
+            counter_array.append(6)
+        except:
+            error_array.append('Unable to save chi_centroid')
+
+        try:
+            save_var_im.append(self.ttheta_centroid)
+            counter_array.append(7)
+        except:
+            error_array.append('Unable to save ttheta_centroid')
+
+
+        for i,number in enumerate(counter_array):
+            if (os.path.isfile(save_dic[number])) == True:
+                error_array.append('Already Exsists: '+save_dic[number].split('/')[-1])
+            else:
+                pass
+                imageio.imwrite(save_dic[number],np.asarray(save_var_im[i]).astype('uint32'))
+        for line in error_array:
+            print(line)
+
+
         #Returns the dimensions of the raw tif images
     def tif_dim(self):
+        log.info('tif_dim BEGIN')
         search='start'
+        maxx=self.max_x()-1
+        maxy=self.max_y()-1
+        loc_data=self.Location_Data()
         while search=='start':
-            xran=random.randint(0,self.max_x()-1)
-            yran=random.randint(0,self.max_y()-1)
+            xran=random.randint(0,maxx)
+            yran=random.randint(0,maxy)
 
             try:
-                output=np.shape(imageio.imread(self.Location_Data()[0][yran][xran][0]))[0]
+                output=np.shape(imageio.imread(loc_data[0][yran][xran][0]))[0]
                 search='y'
             except:
                 pass
-
+        log.info('tif_dim END')
         return output
     
 
@@ -1003,6 +1327,9 @@ background_arr[i],im)
 
         #Shape of the images
        #"""
+
+        if isinstance(scan_number_str,int):
+            scan_number_str=str(scan_number_str)
 
         folderlocation=self.detector
         foldername=scan_number_str
@@ -1181,7 +1508,7 @@ background_arr[i],im)
         beam_rad_pix=(half_zone_plate_nm/f_nm)*len_in_pix
         self.beam_size_in_pixles_val=beam_rad_pix
         
-        print('The Radius Of Your Beam Is: '+str(beam_rad_pix)+' pixles')
+        print('The Instrumental Broadening Of Your Beam Is: '+str(beam_rad_pix)+' pixles. It has now been stored as self.beam_size_in_pixles_val')
         
         return beam_rad_pix
 
@@ -1208,7 +1535,8 @@ background_arr[i],im)
                         allchi='n',
                         rgb_ttheta_bounds='',
                         rgb_chi_bounds='',
-                        troubleshooting=''
+                        troubleshooting='',
+			video_image_right='roi'
                         
 
                        ):
@@ -1261,6 +1589,16 @@ background_arr[i],im)
 
         rbg image of chi and two theta arrays (This is a work in progress. Should not be used for anything)
         """
+        log.info('Chi_TTheta_Maps BEGIN')
+        if save=='y' and video_image_right=='roi' and troubleshooting=='':
+            use_new_roi = input('The default roi has been selected. Do you want to use self.roi_master instead? y/n ')
+            if use_new_roi == 'y':
+                try:
+                    video_image_right=self.roi_master
+                except:
+                    warnings.warn('Program Determined self.roi_master Is Not Valid. Default ROI Is Being Used.')
+                    video_image_right = 'roi'
+
         if rgb_ttheta_bounds!='' or rgb_chi_bounds!='':
             if len(rgb_ttheta_bounds)!=len(rgb_chi_bounds):
                 good_to_go='n'
@@ -1279,6 +1617,8 @@ background_arr[i],im)
         elif chi_down!='':
             chi_down=chi_down
 
+
+
         print('Chi & 2Theta Maps')
         time.sleep(0.5)
         What_Axis=CHIor2THETA('chi')
@@ -1287,12 +1627,15 @@ background_arr[i],im)
         time.sleep(0.5)
         Background_Images=self.background_chi(ims_2_ave,multiplier,med_blur_dist,med_blur_hei).copy()
 
+
+
         print('2Theta Background Image Creation')
         time.sleep(0.5)
         Background_Images2=self.background_2theta(ims_2_ave,multiplier,med_blur_dist,med_blur_hei).copy()
         tif_dim=self.tif_dim()
 
         ran=range(0,tif_dim)
+
 
         TwoThetaLeft=detector_angle-Chi
         TwoThetaRight=detector_angle+Chi
@@ -1312,6 +1655,13 @@ background_arr[i],im)
         q=np.poly1d(np.polyfit(ran,line1,1))
         time.sleep(0.5)
 
+        #Creating figures for the saved images
+        print('Creating Maps...')
+        fig1,ax1 = plt.subplots(1)
+        fig2,ax2 = plt.subplots(1)
+        fig3,ax3 = plt.subplots(1)
+
+        #This is used for if a single particle has multiple domains
         for its in range(0,1):
 
             if its==0:
@@ -1329,12 +1679,15 @@ background_arr[i],im)
             Centroid_Two=[[0 for x in range(maxarr[1])] for y in range(maxarr[0])]
             Centroid_Three=[[0 for x in range(maxarr[1])] for y in range(maxarr[0])]
             counter=0
+
+
+
             if troubleshooting=='':
                 troubleshooting_range=range(0,maxarr[0])
             else:
                 troubleshooting_range=range(troubleshooting[0],troubleshooting[1])
             for k in tqdm(troubleshooting_range):
-                log.info(str(psutil.virtual_memory()[2])+' Memory Used')                                  #For the Height of my image I will do - 
+                #For the Height of my image I will do - 
                 for j in range(0,maxarr[1]):
                                                 #For the Width of my image I will do-    
                     Chi_Data=[[0 for x in range(tif_dim)] for y in range(tif_dim)]
@@ -1348,7 +1701,9 @@ background_arr[i],im)
                         try:
                             initial_read=imageio.imread(empty_list[i][k][j][0]).astype('uint32') #Read the first location from all the folders
                             sum_the_axis=np.sum(initial_read,axis=What_Axis)
+
                             testtesttest=Wills_Median_Blur(sum_the_axis.copy(),med_blur_dist,med_blur_hei)
+
                             background_subtraction=np.subtract(testtesttest,Background_Images[i]).astype('int32')
                             background_subtraction[background_subtraction<0]=math.ceil(np.mean(background_subtraction))
                             background_subtraction[0:chi_up]=0
@@ -1357,7 +1712,6 @@ background_arr[i],im)
                             Image_Data.append(initial_read)
 
                         except:                                                                     #If it can't load an image then do nothing
-                            #print('hi')
                             pass
 
 
@@ -1365,22 +1719,11 @@ background_arr[i],im)
 
                     Tot_I=np.sum(Chi_Data,axis=0)
                     Image_Data_Sum=np.sum(Image_Data,axis=0)
+
+
                     if good_to_go=='y':
                         Centroid_Three[k][j]=np.sum(Image_Data_Sum[chi_up:chi_down,ttheta_low:ttheta_high])
                         
-
-
-
-
-                    
-                    #log.info('Tot_I')
-                    #log.info(Tot_I)
-                    #log.info('Image_Data_Sum')
-                    #log.info(Image_Data_Sum)
-
-
-
-
 
                     outname1='CHI_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
                     outname=outname1+'.png'
@@ -1391,12 +1734,20 @@ background_arr[i],im)
 
 
                     if save=='y':
-                        fig2,ax1=plt.subplots()
-                        newax = fig2.add_axes([0.6,0.15,0.7, 0.7])
-                        try:
-                            newax.imshow(self.roi_crop_post_im,vmin=self.roivmin,vmax=self.roivmax)
-                        except:
-                            newax.imshow(self.roi_crop_pre_im,vmin=self.roivmin,vmax=self.roivmax)
+
+
+                        #Location for the new axis
+                        newax = fig1.add_axes([0.6,0.15,0.7, 0.7])
+                        if video_image_right=='roi':
+                            try:
+                                newax.imshow(self.roi_crop_post_im,vmin=self.roivmin,vmax=self.roivmax)
+                            except:
+                                newax.imshow(self.roi_crop_pre_im,vmin=self.roivmin,vmax=self.roivmax)
+
+                        elif video_image_right!='roi':
+                            newax.imshow(video_image_right)
+                           
+            
                         circ = Circle((j,k),0.5,color='r')
                         newax.add_patch(circ)
                         newax.axis('off')
@@ -1415,16 +1766,23 @@ background_arr[i],im)
 
                             
                             ax1.set_xlabel('Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
-                            fig2.savefig(self.ims_summeddif+outname3,bbox_inches='tight')
-                            
+                            fig1.savefig(self.ims_summeddif+outname3,bbox_inches='tight')
+                            ax1.cla()
+                            newax.cla()
+ 
                         except:
-                            log.warn('The Program Has Determined There Are Missing Values In The ROI Array. This Means You Cannot Determine The Summed Dif Pattern at '+self.ims_summeddif+outname3)
-                        plt.close()
-                        fig=plt.figure()
-                        plt.title(outname1)
-                        plt.tight_layout()
-                        plt.plot(line1,Tot_I)
-                        log.info('St.Dev of '+self.ims_summeddif+outname3+' is: '+str(round(np.std(Tot_I),1))+'Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2))) 
+                            log.warning('The Program Has Determined There Are Missing Values In The ROI Array. This Means You Cannot Determine The Summed Dif Pattern at '+self.ims_summeddif+outname3)
+                        
+
+                    if save == 'y':
+                        ax2.set_title(outname1)
+                        fig2.tight_layout()
+                        ax2.plot(line1,Tot_I)
+
+                        log.info('St.Dev of '+self.ims_summeddif+outname3+' is: '+str(round(np.std(Tot_I),1))+'Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
+
+
+
 
 
 
@@ -1442,13 +1800,11 @@ background_arr[i],im)
                             centroid=background_val_set
 
                     if save=='y':
-                        plt.plot(line1,Tot_I)
-                        plt.axvline(q(centroid),color='r')
-                        plt.xlabel('St.Dev: '+str(round(np.std(Tot_I),1)))
-                        
-                        fig.savefig(self.ims_chi+outname)
-                        plt.close()
-
+                        ax2.plot(line1,Tot_I)
+                        ax2.axvline(q(centroid),color='r')
+                        ax2.set_xlabel('St.Dev: '+str(round(np.std(Tot_I),1)))
+                        fig2.savefig(self.ims_chi+outname)
+                        ax2.cla()
 
                   ############################################################
 
@@ -1469,7 +1825,9 @@ background_arr[i],im)
                             try:
                                 initial_read2=imageio.imread(empty_list[p][k][j][0]).astype('uint32') #Read the first location from all the folders
                                 sum_the_axis2=np.sum(initial_read2,axis=What_Axis2)
+
                                 testtesttest2=Wills_Median_Blur(sum_the_axis2.copy(),med_blur_dist,med_blur_hei)
+
                                 background_subtraction2=np.subtract(testtesttest2,Background_Images2[p]).astype('int32')
                                 background_subtraction2[background_subtraction2<0]=math.ceil(np.mean(background_subtraction2))
                                 background_subtraction2[0:ttheta_low]=0
@@ -1481,12 +1839,8 @@ background_arr[i],im)
                                 pass
 
                         Tot_I2=np.sum(Chi_Data2,axis=0)
-                            #Image_Data2_Sum=np.sum(Image_Data2,axis=0)
-
                         if save=='y':
-                            fig2=plt.figure()
-                            plt.plot(line2,Tot_I2)
-                                #teststd2=np.std(Tot_I2)
+                            ax3.plot(line2,Tot_I2)
 
 
                         if np.std(Tot_I2)<stdev_min:
@@ -1501,14 +1855,15 @@ background_arr[i],im)
                             centroid2=background_val_set
 
                         if save=='y':
-                                #plt.imshow(Image_Data2_Sum,vmin=0,vmax=3)
-                                #plt.imshow(Chi_Data2)    
-                            plt.plot(line2,Tot_I2)
-                            plt.axvline(z(centroid2),color='r')
-                            plt.xlabel('St.Dev: '+str(round(np.std(Tot_I2),1)))
-                            fig2.savefig(self.ims_2theta+outname2)
-                            plt.close()
 
+                            ax3.plot(line2,Tot_I2)
+                            ax3.axvline(z(centroid2),color='r')
+                            ax3.set_xlabel('St.Dev: '+str(round(np.std(Tot_I2),1)))
+                            fig3.savefig(self.ims_2theta+outname2)
+                            ax3.cla()
+
+
+                            
 
 
                         Centroid_Two[k][j]=centroid2
@@ -1516,59 +1871,44 @@ background_arr[i],im)
 
 
                     Centroid[k][j]=centroid
-
+        
+        self.chi_ttheta_sub_fov = sub_fov
+        self.chi_centroid=Centroid
+        self.ttheta_centroid=Centroid_Two
         log.info('This is where the chi figures start to be made')
         fig=plt.figure()
-        log.info('1')
         plt.imshow(Centroid,cmap='gnuplot')
-        log.info('2')
         plt.title('CHI_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov))
-        log.info('3')
         plt.colorbar()
-        log.info('4')
         fig.savefig('/home/will/Desktop/Chi_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.png',bbox_inches='tight',dpi=300)
-        log.info('5')
         if save=='y':
             print('Chi Figures Also Saved To Folders')
             fig.savefig(self.Imagespng+'Chi_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.png',bbox_inches='tight',dpi=300)
-            log.info('6')
             fig.savefig(self.Imagespdf+'Chi_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.pdf',bbox_inches='tight',dpi=300)
-            log.info('7')
             #fig.savefig(self.Imagespgf+'Chi_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.pgf',bbox_inches='tight',dpi=300)
-            log.info('8')
             plt.close()
-            log.info('9')
             ChiArray=np.asarray(Centroid)
-            log.info('10')
             imageio.imwrite(self.Imagesraw+'Chi_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.tif',ChiArray)
-            log.info('11')
         else:
             print('Chi Figures Only Saved To Desktop')
         log.info('This is where the chi figures end being made')
         fig=plt.figure()
-        log.info('first')
         plt.imshow(Centroid_Two)
-        log.info('second')
         plt.title('2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov))
-        log.info('third')
         plt.colorbar()
         fig.savefig('/home/will/Desktop/2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.png',bbox_inches='tight',dpi=300)
-        log.info('fourth')
         if save=='y':
             print('2Theta Figures Also Saved To Folders')
-            log.info('12')
             fig.savefig(self.Imagespng+'2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.png',bbox_inches='tight',dpi=300)
-            log.info('13')
             fig.savefig(self.Imagespdf+'2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.pdf',bbox_inches='tight',dpi=300)
-            log.info('14')
             #fig.savefig(self.Imagespgf+'2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.pgf',bbox_inches='tight',dpi=300)
-            log.info('15')
             plt.close()
             tThetaArray=np.asarray(Centroid_Two)
             imageio.imwrite(self.Imagesraw+'2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'.tif',tThetaArray)
         else:
             print('2Theta Figures Only Saved To Desktop')
-
+        plt.close('all')
+        log.info('Chi_TTheta_Maps END')
         return Centroid_Three
 
 
@@ -1819,12 +2159,28 @@ def d_spacing_angstroms(Initial_Theta,Chi,Kev):
 
     return Left_d_Spacing,Right_d_Spacing,wavelength_in_nm
 
-def SXDM_folder_management(folder_path='',sample_number='',beamline_data='Beam_Line_Data*',wip='WIP*'):
+def SXDM_folder_management(folder_path='',sample_number='',beamline_data='Beam_Line_Data^',wip='WIP^'):
     """
-    After you make the folder management system you will notice some folders have an * by them.
+    Creates a Universal folder system for the users making data analysis and saving much easier.
+
+    After you make the folder management system you will notice some folders have an ^ by them.
     These folder names you are free to change to whatever you want. Everything else should stay the same.
     The User can change any of the other ones, but would also have to change sections of the SXDM code to
     Compenstate.
+
+    Variables-- 
+
+    folder_path: (str)
+                - this is a string to path where you want to make you folder system. 
+
+    sample_number: (int)
+                - this is an integer of how many sample you have to analyze. Different FOV's, but for the same sample do not count as different samples. FOV's are handeled seperatley. 
+
+    beamline_data: (str)
+                - this is a string to the path of your beamline data for this sample. If you have kept the filenames as stock filenames then there is no need to change this default value.
+
+    wip: (str)
+                - this is a strong to the path of your wip data for this sample. If you have kept the filenames as stock filenames then there is no need to change this degault value. 
     
     
     
@@ -1840,10 +2196,10 @@ def SXDM_folder_management(folder_path='',sample_number='',beamline_data='Beam_L
         if not os.path.exists(directory1):
             for i in range(0,sample_number):
                 sample=str(i+1)+'-Sample'
-                os.makedirs(directory1+'/SXDM/APS_Filename*/'+sample)
-                os.makedirs(directory1+'/SXDM/APS_Filename*/'+sample+'/MDA/')
+                os.makedirs(directory1+'/SXDM/APS_Filename^/'+sample)
+                os.makedirs(directory1+'/SXDM/APS_Filename^/'+sample+'/MDA/')
                 atuple=atuple+(directory2+'/'+sample+'/',)
-            os.makedirs(directory1+'/SXDM/APS_Filename*/zDetector/Images/')
+            os.makedirs(directory1+'/SXDM/APS_Filename^/zDetector/Images/')
             
 
 
@@ -1859,7 +2215,7 @@ def SXDM_folder_management(folder_path='',sample_number='',beamline_data='Beam_L
         for dir1 in atuple:
             for dir2 in atuple2:
                 os.makedirs(os.path.join(dir1, dir2))
-        #return (directory1+'/SXDM/APS_Filename*/',directory2+'/')
+        #return (directory1+'/SXDM/APS_Filename^/',directory2+'/')
              
 
 
@@ -1954,6 +2310,7 @@ def Matlab_Move(self,mat_or_tif):
             for file in files_to_move:
                 shutil.move(start_dir+file,end_dir+file)
         else:
-            print('Files will be rewritten. Will not continue. File System: \n'+end_dir+'\n')
+            warnings.warn('Files will be rewritten. Will not continue. Check .log file for the file locations.')
+            log.info('Files will be rewritten. Will not continue. File System: \n'+end_dir+'\n')
 
 

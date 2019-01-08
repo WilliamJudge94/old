@@ -1,4 +1,19 @@
-function SXDM_Mat(loadmda_function_path,beamline_sample_path,wip_sample_path)
+function SXDM_Mat(beamline_sample_path)
+
+loadmda_function_path='/path/to/loadmda_function'
+
+%Default wip_sample_path
+splits=strsplit(beamline_sample_path,'/');
+len=length(splits);
+ending=splits(len)
+len_sub=len-4
+beginning=splits(1:len_sub)
+mid='WIP^'
+str1=horzcat(beginning,mid)
+str2=horzcat(str1,ending)
+wip_sample_path=strjoin(str2,'/')
+
+
 %1) Dont put forward slashes at the end of any of these variables.
 %
 %2) Make all the variables strings.
