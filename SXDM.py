@@ -1220,7 +1220,7 @@ background_arr[i],im)
         save_dic=[
         self.raw+self.fov[0]+'/'+'s_arr_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
         self.raw+self.fov[0]+'/'+'s_arr2_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
-        self.raw+self.fov[0]+'/'+'roi_norm_rgb_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
+        self.raw+self.fov[0]+'/'+'roi_norm_rgb_'+self.fov[0]+'.'+str(self.sub_fov)+'.png',
         self.raw+self.fov[0]+'/'+'roi_master_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
         self.raw+self.fov[0]+'/'+'roi_crop_pre_im_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
         self.raw+self.fov[0]+'/'+'roi_crop_post_im_'+self.fov[0]+'.'+str(self.sub_fov)+'.tif',
@@ -1230,52 +1230,61 @@ background_arr[i],im)
         save_var_im=[]
         counter_array=[]
         error_array=[]
+        saved_array=[]
 
         try:
             save_var_im.append(self.s_arr)
             counter_array.append(0)
+            saved_array.append('Saved s_arr')
         except:
             error_array.append('Unable to save s_arr')
 
         try:
             save_var_im.append(self.s_arr2)
             counter_array.append(1)
+            saved_array.append('Saved s_arr2')
         except:
             error_array.append('Unable to save s_arr2')
 
         try:
             save_var_im.append(self.roi_norm_RGB)
             counter_array.append(2)
+            saved_array.append('Saved roi_norm_RGB')
         except:
             error_array.append('Unable to save roi_norm_RGB')
 
         try:
             save_var_im.append(self.roi_master)
             counter_array.append(3)
+            saved_array.append('Saved roi_master')
         except:
             error_array.append('Unable to save roi_master')
 
         try:
             save_var_im.append(self.roi_crop_pre_im)
             counter_array.append(4)
+            saved_array.append('Saved roi_crop_pre_im')
         except:
             error_array.append('Unable to save roi_crop_pre_im')
 
         try:
             save_var_im.append(self.roi_crop_post_im)
             counter_array.append(5)
+            saved_array.append('Saved roi_crop_post_im')
         except:
             error_array.append('Unable to save roi_crop_post_im')
 
         try:
             save_var_im.append(self.chi_centroid)
             counter_array.append(6)
+            saved_array.append('Saved chi_centroid')
         except:
             error_array.append('Unable to save chi_centroid')
 
         try:
             save_var_im.append(self.ttheta_centroid)
             counter_array.append(7)
+            saved_array.append('Saved ttheta_centroid')
         except:
             error_array.append('Unable to save ttheta_centroid')
 
@@ -1286,6 +1295,10 @@ background_arr[i],im)
             else:
                 pass
                 imageio.imwrite(save_dic[number],np.asarray(save_var_im[i]).astype('uint32'))
+
+        for line in saved_array:
+            print(line)
+
         for line in error_array:
             print(line)
 
@@ -1778,8 +1791,8 @@ background_arr[i],im)
                         ax2.set_title(outname1)
                         fig2.tight_layout()
                         ax2.plot(line1,Tot_I)
-
-                        log.info('St.Dev of '+self.ims_summeddif+outname3+' is: '+str(round(np.std(Tot_I),1))+'Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
+                        if troubleshooting!='':
+                            log.info('St.Dev of '+self.ims_summeddif+outname3+' is: '+str(round(np.std(Tot_I),1))+'Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
 
 
 
