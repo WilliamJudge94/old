@@ -1518,12 +1518,15 @@ background_arr[i],im)
         fraction=(half_zone_plate_nm/f_nm)
         len_in_pix=r_um/Pixle_Width_um
         self.focal_len_mm = f_nm/1000000
-        self.NA_mrad = fraction*1000
+        self.NA_mrads = fraction*1000
         
         beam_rad_pix=(half_zone_plate_nm/f_nm)*len_in_pix
         self.beam_size_in_pixles_val=beam_rad_pix
-        
+
+        print('Focal Length is: '+str(self.focal_len_mm)+' mm and stored as self.focal_len_mm. NA is: '+str(self.NA_mrads)+' mrads and stored as self.NA_mrads' )
+        print('')
         print('The Instrumental Broadening Of Your Beam Is: '+str(beam_rad_pix)+' pixles. It has now been stored as self.beam_size_in_pixles_val')
+        
         
         return beam_rad_pix
 
