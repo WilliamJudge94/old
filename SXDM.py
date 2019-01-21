@@ -1517,6 +1517,8 @@ background_arr[i],im)
 
         fraction=(half_zone_plate_nm/f_nm)
         len_in_pix=r_um/Pixle_Width_um
+        self.focal_len_mm = f_nm/1000000
+        self.NA_mrad = fraction*1000
         
         beam_rad_pix=(half_zone_plate_nm/f_nm)*len_in_pix
         self.beam_size_in_pixles_val=beam_rad_pix
