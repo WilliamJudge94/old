@@ -1498,7 +1498,7 @@ background_arr[i],im)
 
 
 
-    def beam_size_in_pixles(self,D_um,d_rN_nm,Starting_Angle_of_Detector,Kev):
+    def broadening_in_pixles(self,D_um,d_rN_nm,Starting_Angle_of_Detector,Kev):
 		
         Chi=self.chi_value
         r_mm=self.r_mm
@@ -1521,11 +1521,11 @@ background_arr[i],im)
         self.NA_mrads = fraction*1000
         
         beam_rad_pix=(half_zone_plate_nm/f_nm)*len_in_pix
-        self.beam_size_in_pixles_val=beam_rad_pix
+        self.broadening_in_pixles_val=beam_rad_pix
 
         print('Focal Length is: '+str(self.focal_len_mm)+' mm and stored as self.focal_len_mm. NA is: '+str(self.NA_mrads)+' mrads and stored as self.NA_mrads' )
         print('')
-        print('The Instrumental Broadening Of Your Beam Is: '+str(beam_rad_pix)+' pixles. It has now been stored as self.beam_size_in_pixles_val')
+        print('The Instrumental Broadening Of Your Beam Is: '+str(beam_rad_pix)+' pixles. It has now been stored as self.broadening_in_pixles_val')
         
         
         return beam_rad_pix
