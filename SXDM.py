@@ -27,6 +27,7 @@ import shutil
 import psutil
 import matplotlib.patches as patches
 from matplotlib.patches import Circle
+import multiprocessing
 
 def mem_logger(num):
     mems=psutil.virtual_memory()
@@ -537,7 +538,7 @@ class SXDM():
         log.info('Location_Data END') 
         return location_data
         #Summes all the data given in the beamline data images
-    def summeddif_cal(self,new_location_data,contrast_change,vmin='',vmax='',background_sub='y',background_sub_reverse='n',multiplier=1,num_ims_to_ave=2,roi_box_calc=False):                    #Does the same thing as the Summedarray tool, but this does it on the shifted data collected from this program to make sure the user is doing everything correctly 
+    def summeddif_cal(self,new_location_data,contrast_change,vmin='',vmax='',background_sub='y',background_sub_reverse='n',multiplier=1,num_ims_to_ave=2,roi_box_calc=False,annulus_roi=''):                    #Does the same thing as the Summedarray tool, but this does it on the shifted data collected from this program to make sure the user is doing everything correctly 
         """Allows the User to create a summed diffraction pattern from their data
 
 	Variables--
@@ -583,7 +584,7 @@ class SXDM():
         self.rois_background_sub_reverse=background_sub_reverse
         self.rois_multiplier=multiplier
         self.rois_num_ims_to_ave=num_ims_to_ave
-
+        tif_dims = self.tif_dim()
         	 
         time.sleep(0.5)
         length=self.tif_dim()
@@ -591,6 +592,40 @@ class SXDM():
         foldernames=self.scanlist
         location_data=self.Location_Data()
         rerunall=contrast_change                   #Didnt want to rewrite all the code. rerunall doesnt mean rerunall look at this line of code. It means are you changing the contrast
+
+        
+        if annulus_roi != '':
+            print('Initiating Annulus Computation...')
+            print('')
+            annulus_data = [[[0 for x in range(max(shape)[1])] for y in range(max(shape)[0])] for z in range(4)]
+            h = tif_dims
+            w = tif_dims 
+            center = (annulus_roi[0],annulus_roi[1])
+            radius_annulus = annulus_roi[2]
+            radius_2annulus = sqrt(2*radius_annulus*radius_annulus)
+            #Creating Annulus Mask (Everthing that is the annulus and everything that isnt the annulus)
+            mask_annulus = create_circular_mask(h, w, center = center,radius=radius_annulus)
+            #Creating Twice Annulus Mask
+            mask_2annulus = create_circular_mask(h, w, center = center,radius=radius_2annulus)
+            #Creating A Subtraction From The First Two ()
+            mask_2annulus_real = mask_annulus.copy()
+            mask_2annulus_else = mask_annulus.copy()
+            for a,line in enumerate(mask_2annulus):
+                for b,row in enumerate(line):
+                    if mask_annulus[a][b] and mask_2annulus[a][b] == True:
+                        mask_2annulus_real[a][b] = False
+                    elif mask_2annulus[a][b] == True:
+                        mask_2annulus_real[a][b] = True
+                    else:
+                        mask_2annulus_real[a][b] = False
+                    if mask_2annulus[a][b] == True or mask_annulus[a][b] == True:
+                        mask_2annulus_else[a][b] = False
+                    else:
+                        mask_2annulus_else[a][b] = True
+
+
+
+
         if contrast_change=='n':
             print('Initializing Background Creation...')
             log.info('Initializing Background Creation...')
@@ -630,6 +665,30 @@ background_arr[i],im)
                     try:
                         summed_spot=np.sum(spot_data,axis=0) 
                         tot_data=np.add(tot_data,summed_spot)
+
+
+                        if annulus_roi != '':
+                            summed_spot_annulus = summed_spot.copy()
+                            summed_spot_not_annulus = summed_spot.copy()
+                            summed_spot_twice_annulus = summed_spot.copy()
+                            summed_spot_not_twice_annulus = summed_spot.copy()
+
+                            #Annulus
+                            summed_spot_annulus[~mask_annulus] = 0
+                            annulus_data[0][k][j] = np.sum(Wills_Median_Blur_With_Low(np.sum(summed_spot_annulus,axis = 0),4,10))
+
+                            #Not Annulus
+                            summed_spot_not_annulus[mask_annulus] = 0
+                            annulus_data[1][k][j] = np.sum(Wills_Median_Blur_With_Low(np.sum(summed_spot_not_annulus,axis = 0),4,10))
+
+                            #Twice Annulus
+                            summed_spot_twice_annulus[~mask_2annulus_real] = 0
+                            annulus_data[2][k][j] = np.sum(Wills_Median_Blur_With_Low(np.sum(summed_spot_twice_annulus,axis = 0),4,10))
+
+                            #Everything Outside Twice Annulus
+                            summed_spot_not_twice_annulus[~mask_2annulus_else] = 0
+                            annulus_data[3][k][j] = np.sum(Wills_Median_Blur_With_Low(np.sum(summed_spot_not_twice_annulus,axis = 0),4,10))
+
                         if roi_box_calc==True:
                             for variable,box in enumerate(self.roi_boxes):
                                 roi_cropping=np.sum(summed_spot[box[1]:box[1]+box[3],box[0]:box[0]+box[2]],axis=0)
@@ -684,6 +743,10 @@ background_arr[i],im)
             elif new_location_data=='y':
                 self.s_arr2=tot_data
                 print('Min Value: '+str(round(np.min(tot_data),2))+'   Max Value: '+str(round(np.max(tot_data),2)))
+            try:
+                self.annulus_data = annulus_data
+            except:
+                pass
             log.info('summeddif_cal END') 
             if roi_box_calc==False:
                 return tot_data
@@ -740,6 +803,10 @@ background_arr[i],im)
                     self.rois_vmin=np.min(im_arr)
                     self.rois_vmax=vmax
             print('Min Value: '+str(round(np.min(im_arr),2))+'   Max Value: '+str(round(np.max(im_arr),2)))
+            try:
+                self.annulus_data = annulus_data
+            except:
+                pass
             log.info('summeddif_cal END') 
             if roi_box_calc==False:
                 return self.s_arr
@@ -1607,6 +1674,17 @@ background_arr[i],im)
 
         rbg image of chi and two theta arrays (This is a work in progress. Should not be used for anything)
         """
+        self.thetas_datas = []
+        lock = multiprocessing.Lock()
+        figs = plt.figure(figsize = (3,4))
+        gs = gridspec.GridSpec(3, 3, width_ratios=[1.3,1,1])
+        gs.update(hspace=0.45)
+        ax10 = plt.subplot(gs[0,0])
+        ax11 = plt.subplot(gs[0,1])
+        ax14 = plt.subplot(gs[0,2])
+        ax12=plt.subplot(gs[1,:3])
+        ax13=plt.subplot(gs[2,:3])
+
         log.info('Chi_TTheta_Maps BEGIN')
         if save=='y' and video_image_right=='roi' and troubleshooting=='':
             use_new_roi = input('The default roi has been selected. Do you want to use self.roi_master instead? y/n ')
@@ -1678,6 +1756,7 @@ background_arr[i],im)
         fig1,ax1 = plt.subplots(1)
         fig2,ax2 = plt.subplots(1)
         fig3,ax3 = plt.subplots(1)
+        time.sleep(0.5)
 
         #This is used for if a single particle has multiple domains
         for its in range(0,1):
@@ -1732,9 +1811,6 @@ background_arr[i],im)
                         except:                                                                     #If it can't load an image then do nothing
                             pass
 
-
-
-
                     Tot_I=np.sum(Chi_Data,axis=0)
                     Image_Data_Sum=np.sum(Image_Data,axis=0)
 
@@ -1752,57 +1828,48 @@ background_arr[i],im)
 
 
                     if save=='y':
+                        fig_title = outname3
+                        output_loc = self.ims_summeddif+outname3
+                        summed_dif_im = Image_Data_Sum.copy()
+                        sum_extent = (TwoThetaLeft,TwoThetaRight,Chi,-Chi)
+                        chi_x = line1.copy()
+                        chi_y_raw = np.sum(Chi_Data,axis=0)
 
-
-                        #Location for the new axis
-                        newax = fig1.add_axes([0.6,0.15,0.7, 0.7])
+                    
+                        #This Saves The Summed Diffraction Next To The ROI
                         if video_image_right=='roi':
                             try:
-                                newax.imshow(self.roi_crop_post_im,vmin=self.roivmin,vmax=self.roivmax)
+                                roi_im = self.roi_crop_post_im
                             except:
-                                newax.imshow(self.roi_crop_pre_im,vmin=self.roivmin,vmax=self.roivmax)
+                                roi_im = self.roi_crop_pre_im
 
-                        elif video_image_right!='roi':
-                            newax.imshow(video_image_right)
+                        #if user_new_roi=='y':
+                        #    roi_im = video_image_right
                            
-            
-                        circ = Circle((j,k),0.5,color='r')
-                        newax.add_patch(circ)
-                        newax.axis('off')
-                        plt.suptitle(outname3)
                         try:
                             if summed_ims_vmin==''and summed_ims_vmax=='':
-                                ax1.imshow(Image_Data_Sum,vmin=np.min(Image_Data_Sum),vmax=np.max(Image_Data_Sum),extent=(TwoThetaLeft,TwoThetaRight,Chi,-Chi))
+                                summed_ims_vmin=np.min(Image_Data_Sum)
+                                summed_ims_vmax=np.max(Image_Data_Sum)
+
                             elif summed_ims_vmin!='' and summed_ims_vmax=='':
-                                ax1.imshow(Image_Data_Sum,vmin=summed_ims_vmin,vmax=np.max(Image_Data_Sum),extent=(TwoThetaLeft,TwoThetaRight,Chi,-Chi))
+                                summed_ims_vmin=summed_ims_vmin
+                                summed_ims_vmax=np.max(Image_Data_Sum)
+
                             elif summed_ims_vmin=='' and summed_ims_vmax!='':
-                                ax1.imshow(Image_Data_Sum,vmin=np.min(Image_Data_Sum),vmax=summed_ims_vmax,extent=(TwoThetaLeft,TwoThetaRight,Chi,-Chi))
+                                summed_ims_vmin=np.min(Image_Data_Sum)
+                                summed_ims_vmax=summed_ims_vmax
+
                             elif summed_ims_vmin!='' and summed_ims_vmax!='':
-                                ax1.imshow(Image_Data_Sum,vmin=summed_ims_vmin,vmax=summed_ims_vmax,extent=(TwoThetaLeft,TwoThetaRight,Chi,-Chi))
+                                summed_ims_vmin=summed_ims_vmin
+                                summed_ims_vmax=summed_ims_vmax
                             else:
                                 warnings.warn('Vmin and Vmax for the Summed Diffraction Image') 
 
-                            
-                            ax1.set_xlabel('Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
-                            fig1.savefig(self.ims_summeddif+outname3,bbox_inches='tight')
-                            ax1.cla()
-                            newax.cla()
- 
+
                         except:
                             log.warning('The Program Has Determined There Are Missing Values In The ROI Array. This Means You Cannot Determine The Summed Dif Pattern at '+self.ims_summeddif+outname3)
                         
-
-                    if save == 'y':
-                        ax2.set_title(outname1)
-                        fig2.tight_layout()
-                        ax2.plot(line1,Tot_I)
-                        if troubleshooting!='':
-                            log.info('St.Dev of '+self.ims_summeddif+outname3+' is: '+str(round(np.std(Tot_I),1))+'Sum-Dif-Min: '+str(round(np.min(Image_Data_Sum),2))+'  Sum-Dif_Max: '+str(round(np.max(Image_Data_Sum),2)))
-
-
-
-
-
+##################
 
                     if np.std(Tot_I)<stdev_min:                  #If the standard deviation between points is too small it is probably background signal
                             Tot_I[Tot_I <= np.max(Tot_I) ] = 0               
@@ -1812,27 +1879,30 @@ background_arr[i],im)
                         Tot_I[Tot_I <= np.mean(Tot_I)+np.std(Tot_I) ] = 0
                         if np.std(Tot_I)<stdev_min:              #If the data without the hot pixle has a low standard deviation it is probable just background signal
                             Tot_I[Tot_I <= np.max(Tot_I) ] = background_val_set                                      #Make all values zero (make it a background value)
-                    teststd=np.std(Tot_I)   
-                    centroid=np.sum(xvals*Tot_I)/np.sum(Tot_I)
+                    teststd=np.std(Tot_I)
+                    numerator_1 = np.sum(xvals*Tot_I)
+                    denominator_1 = np.sum(Tot_I)
+                    if numerator_1 == 0 and denominator_1 == 0:
+                        centroid = float('NaN')
+                    else:
+                        centroid=np.sum(xvals*Tot_I)/np.sum(Tot_I)
                     if np.isnan((np.amax(centroid)))==True:
                             centroid=background_val_set
 
                     if save=='y':
-                        ax2.plot(line1,Tot_I)
-                        ax2.axvline(q(centroid),color='r')
-                        ax2.set_xlabel('St.Dev: '+str(round(np.std(Tot_I),1)))
-                        fig2.savefig(self.ims_chi+outname)
-                        ax2.cla()
+                        chi_vline = q(centroid)
+                        chi_y_mani = Tot_I.copy()
+############
 
                   ############################################################
 
                     if allchi=='n':
                         dochi=centroid>0
+                        #Allowing the program to save all 2theta images
+                        dochi=True
                     elif allchi=='y':
                         dochi=True
 
-
-  
                     if dochi==True:
                         What_Axis2=CHIor2THETA('2theta')
 
@@ -1858,8 +1928,8 @@ background_arr[i],im)
 
                         Tot_I2=np.sum(Chi_Data2,axis=0)
                         if save=='y':
-                            ax3.plot(line2,Tot_I2)
-
+                            twotheta_x = line2.copy()
+                            twotheta_y_raw = np.sum(Chi_Data2,axis=0).copy()
 
                         if np.std(Tot_I2)<stdev_min:
                             Tot_I2[Tot_I2 <= np.nanmax(Tot_I2) ] = 0
@@ -1868,17 +1938,58 @@ background_arr[i],im)
                             if np.std(Tot_I2)<stdev_min:
                                 Tot_I2[Tot_I2 <= np.nanmax(Tot_I2) ] = background_val_set
                         teststd2=np.std(Tot_I2)
-                        centroid2=np.sum(xvals*Tot_I2)/np.sum(Tot_I2)
+                        numerator_2 = np.sum(xvals*(Tot_I2))
+                        denominator_2 = np.sum(Tot_I2)
+                        if numerator_2 == 0 and denominator_2 == 0:
+                            centroid2 = float('NaN')
+                        else:
+                            centroid2=numerator_2/denominator_2
                         if np.isnan((np.amax(centroid2)))==True:
                             centroid2=background_val_set
 
                         if save=='y':
+                            twotheta_y_mani = Tot_I2.copy()
+                            twotheta_vline = z(centroid2)
+                            roi_vmin = self.roivmin
+                            roi_vmax = self.roivmax
+                            fluor_im = roi_im.copy()
 
-                            ax3.plot(line2,Tot_I2)
-                            ax3.axvline(z(centroid2),color='r')
-                            ax3.set_xlabel('St.Dev: '+str(round(np.std(Tot_I2),1)))
-                            fig3.savefig(self.ims_2theta+outname2)
-                            ax3.cla()
+                            try:
+                                p1.join()
+                            except:
+                                pass
+                            
+                            p1 = multiprocessing.Process(target = output_figure,args = (figs,
+                                              ax10,
+                                              ax11,
+                                              ax12,
+                                              ax13,
+                                              ax14,
+                                              summed_dif_im, 
+                                              sum_extent, 
+                                              summed_ims_vmin, 
+                                              summed_ims_vmax,
+                                              fig_title,
+                                              twotheta_x,
+                                              twotheta_y_raw,
+                                              twotheta_y_mani,
+                                              twotheta_vline,
+                                              chi_x,
+                                              chi_y_raw,
+                                              chi_y_mani,
+                                              chi_vline,
+                                              j,
+                                              k,
+                                              roi_im,
+                                              roi_vmin,
+                                              roi_vmax,
+                                              fluor_im,
+                                              output_loc,
+                                              lock))
+                            p1.start()
+
+
+#############3
 
 
                             
@@ -2162,6 +2273,103 @@ def Max_Shape_of_Matlab_files(folderlocation,foldername,orderedfilenames,matlab_
             shape.append(np.shape(output_data))                                             #Stores shape of the file into an array
     return max(shape)    
 
+
+
+
+def output_figure(figs,
+                  ax0,
+                  ax1,
+                  ax2,
+                  ax3,
+                  ax4,
+                  summed_dif_im, 
+                  sum_extent, 
+                  summed_ims_vmin, 
+                  summed_ims_vmax,
+                  fig_title,
+                  twotheta_x,
+                  twotheta_y_raw,
+                  twotheta_y_mani,
+                  twotheta_vline,
+                  chi_x,
+                  chi_y_raw,
+                  chi_y_mani,
+                  chi_vline,
+                  j,
+                  k,
+                  roi_im,
+                  roi_vmin,
+                  roi_vmax,
+                  fluor_im,
+                  output_loc,
+                  lock):
+    lock.acquire()
+    title_size = 5
+    stdev_size = 3
+    axis_tick_font_size = 5 
+    circ = Circle((j,k),0.3,color='r')
+    circ2 = Circle((j,k),0.3,color='r')
+
+
+    figs.suptitle(fig_title,fontsize = 8)
+    
+
+    ax0.imshow(summed_dif_im,
+               vmin=summed_ims_vmin,
+               vmax=summed_ims_vmax,
+               extent = sum_extent)
+    ax0.set_title('Diffraction',size=title_size)
+    ax0.tick_params(axis='both', which='major', labelsize=axis_tick_font_size)
+    
+    extent_theta=np.round((np.arange(sum_extent[0],sum_extent[1]+0.01,(sum_extent[1] - sum_extent[0])/3)),1)
+    ax0.set_xticks(extent_theta)
+    
+    extent_chi=np.round((np.arange(sum_extent[2],sum_extent[3]+0.01,(sum_extent[3] - sum_extent[2])/3)),1)
+    ax0.set_yticks(extent_chi)
+
+    ax1.imshow(roi_im)
+    ax1.add_patch(circ)
+    ax1.axis('off')
+    ax1.set_title('ROI',size = title_size)
+
+
+    ax4.imshow(fluor_im)
+    ax4.add_patch(circ2)
+    ax4.axis('off')
+    ax4.set_title('Fluorescence',size = title_size)
+
+
+
+    ax2.set_title('Intensity vs. 2Theta (Degrees)   St.Dev: '+str(round(np.std(twotheta_y_raw),1)).zfill(9)+'  Cent: '+str(round(twotheta_vline,2)).zfill(4),size = title_size)
+
+    ax2.plot(twotheta_x,twotheta_y_raw,linewidth=0.5)
+    ax2.plot(twotheta_x,twotheta_y_mani,linewidth=0.5)
+    ax2.axvline(x=twotheta_vline,color='k',linewidth = 0.5)
+    ax2.tick_params(axis='both', which='major', labelsize=axis_tick_font_size)
+    ax2.margins(x=0.1) 
+    ax2.ticklabel_format(useOffset = False) 
+
+
+    ax3.set_title('Intensity vs Chi (Arb. Degrees)  St.Dev: '+str(round(np.std(chi_y_raw),1)).zfill(9)+'  Cent: '+str(round(chi_vline,2)).zfill(4),size = title_size)
+    ax3.plot(chi_x,chi_y_raw,linewidth=0.5)
+    ax3.plot(chi_x,chi_y_mani,linewidth=0.5)
+    ax3.axvline(x=chi_vline,color='k',linewidth = 0.5)
+    ax3.tick_params(axis='both', which='major', labelsize=axis_tick_font_size)
+    ax3.margins(x=0.1)
+    ax3.ticklabel_format(useOffset = False)
+
+
+    figs.subplots_adjust(left = 0.2,right = .88,bottom=0.05)
+    figs.savefig(output_loc,dpi=300)
+    
+    ax0.cla()
+    ax1.cla()
+    ax2.cla()
+    ax3.cla()
+    ax4.cla()
+    lock.release()
+
+
 def d_spacing_angstroms(Initial_Theta,Chi,Kev):
 
     plancks_constant=(6.62607004*10**-34)/(1.60217662*10**-19)
@@ -2285,6 +2493,23 @@ def Mat_to_Tif_Auto(self,matlab_variable=['data2']):
             imageio.imwrite(output_filename,output_data)                                                                  #Saves the image to the location specified by the user
             All_Fluor_Ims.append(output_data)
         #return All_Fluor_Ims
+
+def create_circular_mask(h, w, center=None, radius=None):
+
+    if center is None: # use the middle of the image
+        center = [int(w/2), int(h/2)]
+    if radius is None: # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
+
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = dist_from_center <= radius
+    return mask
+
+
+
+
 
 def Matlab_Move(self,mat_or_tif):
 
