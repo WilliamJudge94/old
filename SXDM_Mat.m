@@ -1,6 +1,13 @@
 function SXDM_Mat(beamline_sample_path)
+loadmda_function_path='/home/will/Research/UIC/SXDM/Analysis'
 
-loadmda_function_path='/path/to/loadmda_function'
+
+addpath (loadmda_function_path)
+path1add = strsplit(loadmda_function_path,'/')
+leng = size(path1add)
+length = leng(2)-1
+path2add = strjoin(path1add(1:length),'/')
+addpath (path2add)
 
 %Default wip_sample_path
 splits=strsplit(beamline_sample_path,'/');

@@ -1,7 +1,7 @@
 #%matplotlib notebook This will make the plots interactive but also ruin some of the scripts
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+from tqdm import tqdm_notebook as tqdm
 from os import walk
 from PIL import Image
 import numpy as np
@@ -28,6 +28,7 @@ import psutil
 import matplotlib.patches as patches
 from matplotlib.patches import Circle
 import multiprocessing
+import ipywidgets
 
 def mem_logger(num):
     mems=psutil.virtual_memory()
@@ -538,6 +539,7 @@ class SXDM():
         log.info('Location_Data END') 
         return location_data
         #Summes all the data given in the beamline data images
+    
     def summeddif_cal(self,new_location_data,contrast_change,vmin='',vmax='',background_sub='y',background_sub_reverse='n',multiplier=1,num_ims_to_ave=2,roi_box_calc=False,annulus_roi=''):                    #Does the same thing as the Summedarray tool, but this does it on the shifted data collected from this program to make sure the user is doing everything correctly 
         """Allows the User to create a summed diffraction pattern from their data
 
@@ -595,7 +597,7 @@ class SXDM():
 
         
         if annulus_roi != '':
-            print('Initiating Annulus Computation...')
+            print('Initializing Annulus Computation...  self.annulus_data, self.summed_annulus_data, and self.annulus_names Created')
             print('')
             annulus_data = [[[0 for x in range(max(shape)[1])] for y in range(max(shape)[0])] for z in range(4)]
             h = tif_dims
@@ -641,9 +643,9 @@ class SXDM():
             print(' ')
             print('Initializing Summed Diffraction Program...')
             time.sleep(2)
-            for k in tqdm(range(0,max(shape)[0])):                           #            #For the x dim of the roi                                        
+            for k in tqdm(range(0,max(shape)[0]),desc = "Rows"):                           #            #For the x dim of the roi                                        
 
-                for j in range(0,max(shape)[1]):                                    #for the y dim of the roi
+                for j in tqdm(range(0,max(shape)[1]),desc = "Columns",leave = False):                                    #for the y dim of the roi
                     spot_data=[]
                     for i in range(0,len(foldernames)):
 
@@ -688,7 +690,8 @@ background_arr[i],im)
                             #Everything Outside Twice Annulus
                             summed_spot_not_twice_annulus[~mask_2annulus_else] = 0
                             annulus_data[3][k][j] = np.sum(Wills_Median_Blur_With_Low(np.sum(summed_spot_not_twice_annulus,axis = 0),4,10))
-
+                            
+ 
                         if roi_box_calc==True:
                             for variable,box in enumerate(self.roi_boxes):
                                 roi_cropping=np.sum(summed_spot[box[1]:box[1]+box[3],box[0]:box[0]+box[2]],axis=0)
@@ -745,6 +748,7 @@ background_arr[i],im)
                 print('Min Value: '+str(round(np.min(tot_data),2))+'   Max Value: '+str(round(np.max(tot_data),2)))
             try:
                 self.annulus_data = annulus_data
+                summed_spot_anul(self,tot_data,mask_annulus,mask_2annulus_real,mask_2annulus_else)
             except:
                 pass
             log.info('summeddif_cal END') 
@@ -805,6 +809,7 @@ background_arr[i],im)
             print('Min Value: '+str(round(np.min(im_arr),2))+'   Max Value: '+str(round(np.max(im_arr),2)))
             try:
                 self.annulus_data = annulus_data
+                summed_spot_anul(self,tot_data,mask_annulus,mask_2annulus_real,mask_2annulus_else)
             except:
                 pass
             log.info('summeddif_cal END') 
@@ -1157,14 +1162,6 @@ background_arr[i],im)
 
 
 
-
-
-
-
-
-
-
-
         #Creates a background chi background image for each scan angle
     def background_chi(self,imagestoaverage,multiplier,med_blur_number,med_blur_high):
         log.info('background_chi BEGIN')
@@ -1246,13 +1243,33 @@ background_arr[i],im)
         foldernames=self.scanlist
         location_data=self.Location_Data()
         empty_list=[]
+        delete = False
+        try:
+            test = self.start_y
+            test = self.start_x
+            test = self.end_y
+            test = self.end_x
+        except:
+            delete = True
+            warnings.warn('Starting Parameters Not Found. Setting To Max Lengths.')
+            self.start_y = 0
+            self.start_x = 0
+            self.end_y = self.max_y()
+            self.end_x = self.max_x()
+        
         for i in range(0,len(foldernames)):
-            location_data_new=[[None for x in range(self.x_length)] for y in range(self.y_length)]
+            location_data_new=[[None for x in range(self.max_x())] for y in range(self.max_y())]
             for j in range(self.start_y,self.end_y):
                 for k in range(self.start_x,self.end_x):
                     location_data_new[j][k]=location_data[i][j][k]
             empty_list.append(location_data_new)
         log.info('location_data_crop END')
+        if delete == True:
+            warnings.warn('Deleting Default Parameters.')
+            del self.start_y 
+            del self.start_x
+            del self.end_y
+            del self.end_x          
         return empty_list
 
     def summeddif_cal_cropped(self,vmax=''):
@@ -1783,9 +1800,9 @@ background_arr[i],im)
                 troubleshooting_range=range(0,maxarr[0])
             else:
                 troubleshooting_range=range(troubleshooting[0],troubleshooting[1])
-            for k in tqdm(troubleshooting_range):
+            for k in tqdm(troubleshooting_range,desc = "Row"):
                 #For the Height of my image I will do - 
-                for j in range(0,maxarr[1]):
+                for j in tqdm(range(0,maxarr[1]),desc = "Column",leave = False):
                                                 #For the Width of my image I will do-    
                     Chi_Data=[[0 for x in range(tif_dim)] for y in range(tif_dim)]
                     Image_Data=[]
@@ -1818,11 +1835,11 @@ background_arr[i],im)
                     if good_to_go=='y':
                         Centroid_Three[k][j]=np.sum(Image_Data_Sum[chi_up:chi_down,ttheta_low:ttheta_high])
                         
-
-                    outname1='CHI_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
-                    outname=outname1+'.png'
-                    outname2='2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
-                    outname2=outname2+'.png'
+                    #Legacy
+                    #outname1='CHI_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
+                    #outname=outname1+'.png'
+                    #outname2='2Theta_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
+                    #outname2=outname2+'.png'
                     outname3_1='Summed_Dif_'+self.samplestate+'_'+self.fov[0]+'.'+str(sub_fov)+'__'+str(k).zfill(2)+'_'+str(j).zfill(2)+'__'
                     outname3=outname3_1+'.png'
 
@@ -2507,7 +2524,28 @@ def create_circular_mask(h, w, center=None, radius=None):
     mask = dist_from_center <= radius
     return mask
 
+def summed_spot_anul(self,summed_spot,mask_annulus,mask_2annulus_real,mask_2annulus_else):
+    summed_spot_annulus = summed_spot.copy()
+    summed_spot_not_annulus = summed_spot.copy()
+    summed_spot_twice_annulus = summed_spot.copy()
+    summed_spot_not_twice_annulus = summed_spot.copy()
+    #Annulus
+    summed_spot_annulus[~mask_annulus] = 0
 
+    #Not Annulus
+    summed_spot_not_annulus[mask_annulus] = 0
+
+    #Twice Annulus
+    summed_spot_twice_annulus[~mask_2annulus_real] = 0
+    
+    #Not Twice
+    summed_spot_not_twice_annulus[~mask_2annulus_else] = 0
+    
+    
+    
+    self.summed_annulus_data = [summed_spot_annulus, summed_spot_not_annulus,summed_spot_twice_annulus,summed_spot_not_twice_annulus]
+    
+    self.annulus_names = ['Summed Spot Annulus', 'Summed Spot Not Annulus', 'Summed Spot Twice Annulus', 'Summed Spot Not Twice Annulus']
 
 
 
